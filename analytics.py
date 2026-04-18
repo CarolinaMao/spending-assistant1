@@ -2,115 +2,117 @@ import calendar
 from collections import defaultdict
 from datetime import datetime, timedelta
 
-
-def parse_date(date_str):
-    return datetime.strptime(date_str, "%Y-%m-%d")
-
+def parse_date(date_string):
+    return datetime.strptime(date_string, "%Y-%m-%d")
 
 def filter_by_date(transactions, start=None, end=None):
-    result = []
-    for t in transactions:
-        d = parse_date(t["date"])
-        if start and d < start:
-            continue
-        if end and d > end:
-            continue
-        result.append(t)
-    return result
-
+    def check_range(tx):
+        d = parse_date(tx["date"])
+        if start and d < start: return False
+        if end and d > end: return False
+        return True
+    return [tx for tx in transactions if check_range(tx)]
 
 def get_totals_by_category(transactions, start=None, end=None):
-    filtered = filter_by_date(transactions, start, end)
-    totals = defaultdict(float)
-    for t in filtered:
-        totals[t["category"]] += t["amount"]
-    return dict(totals)
-
+    subset = filter_by_date(transactions, start, end)
+    mapping = defaultdict(float)
+    for row in subset:
+        mapping[row["category"]] += row["amount"]
+    return dict(mapping)
 
 def get_top_n_categories(transactions, n=3, start=None, end=None):
-    totals = get_totals_by_category(transactions, start, end)
-    total = sum(totals.values())
-    sorted_cats = sorted(totals.items(), key=lambda x: x[1], reverse=True)
+    cat_vals = get_totals_by_category(transactions, start, end)
+    overall = sum(cat_vals.values())
+    ordered = sorted(cat_vals.items(), key=lambda x: x[1], reverse=True)
+    
     return [
-        (cat, amt, (amt / total * 100) if total > 0 else 0)
-        for cat, amt in sorted_cats[:n]
+        (k, v, (v / overall * 100) if overall > 0 else 0)
+        for k, v in ordered[:n]
     ]
 
-
 def get_spending_trends(transactions):
-    now = datetime.now()
-    last_7 = filter_by_date(transactions, now - timedelta(days=7), now)
-    last_30 = filter_by_date(transactions, now - timedelta(days=30), now)
-    avg_7 = sum(t["amount"] for t in last_7) / 7 if last_7 else 0
-    avg_30 = sum(t["amount"] for t in last_30) / 30 if last_30 else 0
-    return avg_7, avg_30
+    ref_day = datetime.now()
+    w_data = filter_by_date(transactions, ref_day - timedelta(days=7), ref_day)
+    m_data = filter_by_date(transactions, ref_day - timedelta(days=30), ref_day)
+    
+    w_avg = sum(i["amount"] for i in w_data) / 7 if w_data else 0
+    m_avg = sum(i["amount"] for i in m_data) / 30 if m_data else 0
+    return w_avg, m_avg
 
-
-def get_daily_totals_by_category(transactions, category):
-    daily = defaultdict(float)
-    for t in transactions:
-        if t["category"] == category:
-            daily[t["date"]] += t["amount"]
-    return dict(daily)
-
+def get_daily_totals_by_category(transactions, category_name):
+    daily_map = {}
+    for entry in transactions:
+        if entry["category"] == category_name:
+            day = entry["date"]
+            daily_map[day] = daily_map.get(day, 0.0) + entry["amount"]
+    return daily_map
 
 def get_consecutive_overspend(transactions, category, daily_cap):
-    daily = get_daily_totals_by_category(transactions, category)
-    sorted_dates = sorted(daily.keys(), reverse=True)
-    streak = 0
-    for date_str in sorted_dates:
-        if daily[date_str] > daily_cap:
-            streak += 1
+    usage = get_daily_totals_by_category(transactions, category)
+    timeline = sorted(usage.keys(), reverse=True)
+    
+    consecutive = 0
+    for day_key in timeline:
+        if usage[day_key] > daily_cap:
+            consecutive += 1
         else:
             break
-    return streak
+    return consecutive
 
-
-def get_savings_progress(transactions, savings_goal, income):
-    now = datetime.now()
-    start = datetime(now.year, now.month, 1)
-    monthly = filter_by_date(transactions, start, now)
-    spent = sum(t["amount"] for t in monthly)
-    remaining = income - spent
-    savings = remaining - savings_goal
-    return spent, remaining, savings
-
+def get_savings_progress(transactions, target, total_income):
+    today = datetime.now()
+    month_start = datetime(today.year, today.month, 1)
+    current_tx = filter_by_date(transactions, month_start, today)
+    
+    outflow = sum(obj["amount"] for obj in current_tx)
+    surplus = total_income - outflow
+    net = surplus - target
+    return outflow, surplus, net
 
 def linear_forecast(transactions):
     now = datetime.now()
-    start = datetime(now.year, now.month, 1)
-    monthly = filter_by_date(transactions, start, now)
-    if not monthly:
+    start_point = datetime(now.year, now.month, 1)
+    records = filter_by_date(transactions, start_point, now)
+    
+    if not records:
         return 0.0
-    days_elapsed = (now - start).days + 1
-    spent = sum(t["amount"] for t in monthly)
-    days_in_month = calendar.monthrange(now.year, now.month)[1]
-    return (spent / days_elapsed) * days_in_month
-
+        
+    passed = (now - start_point).days + 1
+    accumulated = sum(r["amount"] for r in records)
+    _, days_in_month = calendar.monthrange(now.year, now.month)
+    
+    return (accumulated / passed) * days_in_month
 
 def spending_heatmap(transactions):
     now = datetime.now()
     start = datetime(now.year, now.month, 1)
-    monthly = filter_by_date(transactions, start, now)
+    history = filter_by_date(transactions, start, now)
 
-    daily = defaultdict(float)
-    for t in monthly:
-        daily[t["date"]] += t["amount"]
+    daily_bins = defaultdict(float)
+    for h in history:
+        daily_bins[h["date"]] += h["amount"]
 
-    if not daily:
+    if not daily_bins:
         return {}
 
-    avg = sum(daily.values()) / len(daily)
-    result = {}
-    for date_str, amt in daily.items():
-        ratio = amt / avg if avg > 0 else 0
-        if ratio < 0.5:
-            sym = "░"
-        elif ratio < 1.0:
-            sym = "▒"
-        elif ratio < 1.5:
-            sym = "▓"
-        else:
-            sym = "█"
-        result[date_str] = (sym, amt)
-    return result
+    avg_val = sum(daily_bins.values()) / len(daily_bins)
+    viz = {}
+    
+    for dt_str, val in daily_bins.items():
+        ratio = val / avg_val if avg_val > 0 else 0
+        if ratio >= 1.5: icon = "█"
+        elif ratio >= 1.0: icon = "▓"
+        elif ratio >= 0.5: icon = "▒"
+        else: icon = "░"
+        viz[dt_str] = (icon, val)
+    return viz
+
+def get_spending_outliers(transactions, top_percent=0.05):
+    if not transactions:
+        return []
+    
+    ordered = sorted(transactions, key=lambda x: x["amount"], reverse=True)
+    
+    count = max(1, int(len(ordered) * top_percent))
+    
+    return ordered[:count]
