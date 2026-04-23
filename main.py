@@ -242,14 +242,20 @@ def edit_delete_flow():
 
 
 def statistics_flow():
+    """
+    Handle the flow for the Statistics & Analytics menu, providing various 
+    spending insights and visual reports.
+    """
     transactions = load_transactions()
     budget_rules = load_budget_rules()
+    
+    # Define and display the selection menu for different analysis reports
     action = choose("Statistics:", [
         _sep("Overview"),
         "Category Totals — Current Month",
         "Category Totals — All Time",
         "Top 3 Categories",
-        "Major Expenses (Top 5%)",
+        "Major Expenses (Top 5%)", 
         _sep("Trends & Forecast"),
         "Spending Trends (7d vs 30d)",
         "Spending Forecast",
@@ -259,24 +265,36 @@ def statistics_flow():
         _sep(),
         BACK,
     ])
+    
     if action == BACK:
         return
+    
+    # Process the user selection and trigger the corresponding display function
     if action == "Category Totals — Current Month":
         now = datetime.now()
+        # Filter records for the current calendar month
         filtered = filter_by_date(transactions, datetime(now.year, now.month, 1), now)
         print_statistics(filtered, now.strftime("%B %Y"))
+        
     elif action == "Category Totals — All Time":
         print_statistics(transactions)
+        
     elif action == "Top 3 Categories":
         print_top_categories(transactions)
+        
     elif action == "Major Expenses (Top 5%)":
+        # Identify and display individual large transactions using the outlier detection logic
         print_outliers(transactions)
+        
     elif action == "Spending Trends (7d vs 30d)":
         print_trends(transactions)
+        
     elif action == "Budget Progress Bars":
         print_budget_bars(transactions, budget_rules)
+        
     elif action == "Spending Forecast":
         print_forecast(transactions)
+        
     elif action == "Spending Heatmap":
         print_heatmap(transactions)
 
