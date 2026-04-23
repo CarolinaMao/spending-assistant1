@@ -3,9 +3,15 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 
 def parse_date(date_string):
+    """
+    Convert a date string (YYYY-MM-DD) into a datetime object.
+    """
     return datetime.strptime(date_string, "%Y-%m-%d")
 
 def filter_by_date(transactions, start=None, end=None):
+    """
+    Filter the transaction list based on a specific start and end date range.
+    """
     def check_range(tx):
         d = parse_date(tx["date"])
         if start and d < start: return False
@@ -14,6 +20,9 @@ def filter_by_date(transactions, start=None, end=None):
     return [tx for tx in transactions if check_range(tx)]
 
 def get_totals_by_category(transactions, start=None, end=None):
+    """
+    Aggregate total spending for each category within an optional date range.
+    """
     subset = filter_by_date(transactions, start, end)
     mapping = defaultdict(float)
     for row in subset:
@@ -21,6 +30,9 @@ def get_totals_by_category(transactions, start=None, end=None):
     return dict(mapping)
 
 def get_top_n_categories(transactions, n=3, start=None, end=None):
+    """
+    Identify the top N categories with the highest spending and calculate their percentage share.
+    """
     cat_vals = get_totals_by_category(transactions, start, end)
     overall = sum(cat_vals.values())
     ordered = sorted(cat_vals.items(), key=lambda x: x[1], reverse=True)
@@ -31,6 +43,9 @@ def get_top_n_categories(transactions, n=3, start=None, end=None):
     ]
 
 def get_spending_trends(transactions):
+    """
+    Compare average daily spending from the last 7 days vs. the last 30 days.
+    """
     ref_day = datetime.now()
     w_data = filter_by_date(transactions, ref_day - timedelta(days=7), ref_day)
     m_data = filter_by_date(transactions, ref_day - timedelta(days=30), ref_day)
@@ -40,6 +55,9 @@ def get_spending_trends(transactions):
     return w_avg, m_avg
 
 def get_daily_totals_by_category(transactions, category_name):
+    """
+    Map out total spending per day for a specific category.
+    """
     daily_map = {}
     for entry in transactions:
         if entry["category"] == category_name:
@@ -48,6 +66,9 @@ def get_daily_totals_by_category(transactions, category_name):
     return daily_map
 
 def get_consecutive_overspend(transactions, category, daily_cap):
+    """
+    Calculate the number of consecutive days the user has exceeded their daily cap for a category.
+    """
     usage = get_daily_totals_by_category(transactions, category)
     timeline = sorted(usage.keys(), reverse=True)
     
@@ -60,6 +81,9 @@ def get_consecutive_overspend(transactions, category, daily_cap):
     return consecutive
 
 def get_savings_progress(transactions, target, total_income):
+    """
+    Calculate current month's outflow, surplus, and progress toward a savings target.
+    """
     today = datetime.now()
     month_start = datetime(today.year, today.month, 1)
     current_tx = filter_by_date(transactions, month_start, today)
@@ -70,6 +94,9 @@ def get_savings_progress(transactions, target, total_income):
     return outflow, surplus, net
 
 def linear_forecast(transactions):
+    """
+    Predict total spending for the current month using linear projection based on daily average.
+    """
     now = datetime.now()
     start_point = datetime(now.year, now.month, 1)
     records = filter_by_date(transactions, start_point, now)
@@ -84,6 +111,9 @@ def linear_forecast(transactions):
     return (accumulated / passed) * days_in_month
 
 def spending_heatmap(transactions):
+    """
+    Generate a heatmap visualization data by comparing daily spending to the monthly average.
+    """
     now = datetime.now()
     start = datetime(now.year, now.month, 1)
     history = filter_by_date(transactions, start, now)
@@ -100,6 +130,7 @@ def spending_heatmap(transactions):
     
     for dt_str, val in daily_bins.items():
         ratio = val / avg_val if avg_val > 0 else 0
+        # Assign different density characters based on spending intensity
         if ratio >= 1.5: icon = "█"
         elif ratio >= 1.0: icon = "▓"
         elif ratio >= 0.5: icon = "▒"
@@ -108,11 +139,16 @@ def spending_heatmap(transactions):
     return viz
 
 def get_spending_outliers(transactions, top_percent=0.05):
+    """
+    Retrieve the top X% (default 5%) of transactions by amount to identify major expenses.
+    """
     if not transactions:
         return []
     
+    # Sort transactions in descending order by amount
     ordered = sorted(transactions, key=lambda x: x["amount"], reverse=True)
     
+    # Determine the number of outliers to return (at least one if transactions exist)
     count = max(1, int(len(ordered) * top_percent))
     
     return ordered[:count]
