@@ -257,14 +257,34 @@ def print_heatmap(transactions):
     console.print()
 
 def print_outliers(transactions):
+    """
+    Identify and display the highest spending transactions as a formatted table.
+    Uses the outlier detection logic to highlight the top 5% of expenses.
+    """
+    # Import inside the function to prevent potential circular dependency issues
+    from analytics import get_spending_outliers 
+    
     outliers = get_spending_outliers(transactions)
+    
+    # Handle the case where no transaction data is available
     if not outliers:
+        console.print("[dim]No significant outliers found.[/dim]")
         return
-    table = Table(title="🚩 Significant Spendings (Top 5%)", box=box.SIMPLE_HEAVY, expand=False)
+        
+    # Initialize a Rich table for a clean, visual representation of high expenses
+    table = Table(
+        title="🚩 Significant Spendings (Top 5%)", 
+        box=box.SIMPLE_HEAVY, 
+        expand=False
+    )
+    
+    # Define table columns with specific styling for better readability
     table.add_column("Date", style="magenta")
     table.add_column("Category", style="yellow")
     table.add_column("Amount", style="green", justify="right")
     table.add_column("Description")
+    
+    # Populate the table rows with filtered outlier data
     for t in outliers:
         table.add_row(
             t["date"],
@@ -272,6 +292,8 @@ def print_outliers(transactions):
             f"HK${t['amount']:.2f}",
             t["description"]
         )
+        
+    # Render the table to the console
     console.print(table)
 def export_report(transactions, budget_rules, categories, config, filename=None):
     os.makedirs("outputs", exist_ok=True)
